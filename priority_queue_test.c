@@ -4,7 +4,7 @@
 
 // Priority Queue Testing
 // Prints a PQ for testing purposes
-static void print_priority_queue(const PriorityQueue *queue) {
+void print_priority_queue(const PriorityQueue *queue) {
     printf("%s", "\n[");
     for (size_t i = 0; i < queue->size; ++i) {
         printf("{Data: %c, Frequency: %zu, Left: %p, Right: %p }",

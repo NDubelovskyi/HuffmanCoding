@@ -1,6 +1,12 @@
 #include "priority_queue.h"
 #include <stdlib.h>
 
+// Helper methods prototypes
+static void sink(PriorityQueue *queue, size_t root_node);
+static void swim(PriorityQueue *queue, size_t leaf_node);
+static bool priority(const Node *const first_node, const Node *const second_node);
+static void exchange(Node **first_node, Node **second_node);
+static int resize(PriorityQueue *queue, const size_t new_capacity);
 
 // PQ Constructor & Destroyer
 // Creates an empty minimum priority queue by allocating necessary memories for appropriate structures
