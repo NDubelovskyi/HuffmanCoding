@@ -4,8 +4,6 @@
 /*
                                                 * DEVELOPMENT NOTES *
     // TODO: Make an Encoder and Decoder
-    // Generate the encoded file and keys separately
-    // Unite the encoded and keys files
     // Let users interact - shift away from hardcoded files
 */
 
@@ -18,22 +16,27 @@ int main(void) {
     size_t frequencies[CHAR_AMOUNT] = {0};
 
     // Open for encoding
+    // FILE *encoding_input = fopen("../sources/Hamlet by William Shakespeare (ASCII Version).txt", "rb");
     FILE *encoding_input = fopen("../sources/a.txt", "rb");
-    if (encoding_input == NULL) { printf("Cannot open the file to be encoded"); return 1; }
+    if (encoding_input == NULL) { printf("Cannot open the file to be encoded"); return -1; }
 
-    // Check return codes for successful execution later on
+    // TODO: Check return codes for successful execution later on
     build_frequency_table(frequencies, encoding_input);
     build_huffman_tree(&tree, frequencies);
+
+    // FILE *encoding_output = fopen("../sources/Hamlet by William Shakespeare (ASCII Version).huff", "wb");
+    FILE *encoding_output = fopen("../sources/a.huff", "wb");
+    if (encoding_output == NULL) { printf("Cannot open the file to be encoded"); return -1; }
+
+    // TODO: Check return codes for successful execution later on
+    write_huff_file(&tree, encoding_input, encoding_output);
+
+
     free_huffman_tree(&tree);
 
-    // Close the encoding file
+    // Close the encoding files
     fclose(encoding_input);
-
-
-
-    // Testing the priority queue methods
-    // Include '#include "priority_queue.h"' before testing
-    // priority_queue_testing();
+    fclose(encoding_output);
 
     // Successful execution
     return 0;

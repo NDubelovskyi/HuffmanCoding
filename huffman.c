@@ -18,7 +18,7 @@ static void print_huffman_tree(const HuffmanTree *tree);
 static void print_huffman_tree_recursively(const Node *root, size_t level);
 
 
-// Builds a frequency table from the encoding file
+// Builds a frequency table from the encoding file and ensures ASCII encoding of an original file
 int build_frequency_table(size_t frequencies[CHAR_AMOUNT], FILE *encoding_input) {
     if (encoding_input == NULL) {
         puts("NULL pointer exception at 'build_frequency_table(). 'encoding_input' argument is nullptr");
@@ -31,8 +31,18 @@ int build_frequency_table(size_t frequencies[CHAR_AMOUNT], FILE *encoding_input)
     // Array stores the frequency of each character from the encoding file
     // Each character is associated numerically (by an ASCII standard) with its place in the array
     // char -> int, where int is the position in the array
-    while ((character = fgetc(encoding_input)) != EOF)
+    while ((character = fgetc(encoding_input)) != EOF) {
+        // Check for a Non-ASCII Character (prevents characters with codes over CHAR_AMOUNT and prevents further failures)
+        if (character >= CHAR_AMOUNT) {
+            puts("Failed to build the frequency table at 'build_frequency_table()' due to locating a Non-ASCII character in the 'encoding_input'");
+            puts("The File you are trying to compress does not use an ASCII encoding. Please, compress only the text files (.txt) that have an ASCII encoding.");
+            return -1;
+        }
+
+        // Increment character's frequency
         frequencies[character]++;
+    }
+
 
     // Reset the pointer to the beginning of the file
     rewind(encoding_input);
@@ -43,6 +53,7 @@ int build_frequency_table(size_t frequencies[CHAR_AMOUNT], FILE *encoding_input)
 
 // Builds an entire Huffman Tree based on frequencies and generates codes
 // Nodes need to be freed separately as a whole tree
+// TODO: Cleanup build_huffman_tree()
 int build_huffman_tree(HuffmanTree *tree, const size_t frequencies[CHAR_AMOUNT]) {
     if (tree == nullptr) {
         puts("NULL pointer exception at 'build_huffman_tree(). 'tree' argument is nullptr");
