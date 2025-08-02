@@ -10,6 +10,7 @@
 // File Header Definitions
 #define FILE_EXTENSION_SIZE 4
 #define FILE_VERSION 1
+#define MAX_TREE_SIZE ((CHAR_AMOUNT * 3) - 1)
 
 
 // Basic Structures
@@ -45,7 +46,7 @@ void free_huffman_tree(HuffmanTree *tree);
 
 // File Manipulations
 int write_huff_file(const HuffmanTree *tree, FILE *encoding_input, FILE *encoding_output);
-int read_huff_file();
+int read_huff_file(HuffmanTree *tree, FILE *decoding_input, FILE *decoding_output);
 
 
 #endif

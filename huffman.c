@@ -53,7 +53,6 @@ int build_frequency_table(size_t frequencies[CHAR_AMOUNT], FILE *encoding_input)
 
 // Builds an entire Huffman Tree based on frequencies and generates codes
 // Nodes need to be freed separately as a whole tree
-// TODO: Cleanup build_huffman_tree()
 int build_huffman_tree(HuffmanTree *tree, const size_t frequencies[CHAR_AMOUNT]) {
     if (tree == nullptr) {
         puts("NULL pointer exception at 'build_huffman_tree(). 'tree' argument is nullptr");
@@ -65,16 +64,16 @@ int build_huffman_tree(HuffmanTree *tree, const size_t frequencies[CHAR_AMOUNT])
     for (size_t i = 0; i < CHAR_AMOUNT; ++i)
         tree->codes[i] = nullptr;
 
+    // Priority Queue will be in use while constructing the tree
     PriorityQueue *queue = create_priority_queue();
 
+    // Create the Leaves
     if (create_leaves(queue, frequencies) != 0) {
         puts("Memory allocation failed at 'build_huffman_tree()' after calling 'create_leaves()'.");
         return -1;
     }
 
-    // For debugging purposes: prints all the leaves
-    print_priority_queue(queue); puts("");
-
+    // Create the root and parents
     if (create_root_and_parents(queue) != 0) {
         puts("Memory allocation failed at 'build_huffman_tree()' after calling 'create_root_and_parents()'.");
         return -1;
@@ -84,19 +83,10 @@ int build_huffman_tree(HuffmanTree *tree, const size_t frequencies[CHAR_AMOUNT])
     tree->root = pop(queue);
     free_priority_queue(&queue);
 
-    // For debugging purposes: prints entire generated tree
-    print_huffman_tree(tree); puts("");
-
     // Assign codes to all characters
     if (assign_codes(tree) != 0) {
         puts("Memory allocation failed while calling 'assign_codes()' at 'build_huffman_tree()'.");
         return -1;
-    }
-
-    // For debugging purposes: prints the codes
-    for (size_t i = 0; i < CHAR_AMOUNT; i++) {
-        if (tree->codes[i] != nullptr)
-            printf("%c : %s\n", (char)i, tree->codes[i]);
     }
 
     // Successful execution
