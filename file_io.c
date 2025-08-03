@@ -1,20 +1,67 @@
 #include "huffman.h"
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 // Helper Methods
+// Encoding the File
 static int serialize_huffman_tree(const HuffmanTree *tree, Header *header, FILE *encoding_output);
 static int serialize_huffman_tree_recursively(const Node *node, Header *header, FILE *encoding_output);
 static int compress(const HuffmanTree *tree, Header *header, FILE *encoding_input, FILE *encoding_output);
 
+// Decoding the File
 static int deserialize_huffman_tree(HuffmanTree *tree, const Header *header, FILE *decoding_input);
 static int deserialize_huffman_tree_recursively(Node *node, const Header *header, size_t *tree_size, FILE *decoding_input);
 static int decompress(const HuffmanTree *tree, const Header *header, FILE *decoding_input, FILE *decoding_output);
 
-// TODO: Create encode() & decode() to take in the file NAMES (!) and open them and execute write_h_f & reade_h_f
-// Encode should handle building the frequency table and Huffman Tree as well as handle the file size checks
-// Both should handle FILE openings, allocating/freeing the memory, and closing the FILES
+// File Name Checks and Generation
+static bool ends_with(const char *string, const char *suffix);
+static char *change_file_extension(const char *file_path, const char *old_extension, const char *new_extension);
 
+
+// Encodes the file with a given file path
+int encode(const char *file_path) {
+    // Check the file extension
+    if (!ends_with(file_path, ORIGINAL_EXTENSION)) { puts("File path does not end with ORIGINAL_EXTENSION at encode(). Ensure the path name is correct and the extension is right."); return -1; }
+
+    // Open the file for encoding
+    FILE *encoding_input = fopen(file_path, "r");
+    if (encoding_input == NULL) { puts("Cannot open the file to be encoded at encode() for reading. Ensure the file exists and the path name is correct."); return -1; }
+
+    // File size check. The size of an original file cannot be 0B or more than 4GiB
+    struct stat file_status;
+    if (stat(file_path, &file_status) != 0) { puts("Failed to check the file status of an original file at encode()"); fclose(encoding_input); return -1; }
+    // 1LL << 32 means number 1 in 64 bits (long long), then shift it (bit 1) to the left 32 times, resulting in number 2^32, where 2^30 = 1GiB, 2^31 = 2GiB, 2^32 = 4GiB
+    if (file_status.st_size == 0 || file_status.st_size > (1LL << 32)) { puts("The size of a file to be encoded cannot be 0B or more than 4GB. File size check at encode()"); fclose(encoding_input); return -1; }
+
+    // Declare the Huffman Tree and Initialize the frequency array to 0's
+    HuffmanTree tree;
+    size_t frequencies[CHAR_AMOUNT] = {0};
+
+    // Build the frequency table and pass it further to build a Huffman Tree
+    if (build_frequency_table(frequencies, encoding_input) != 0) { puts("Building the frequency table failed at encode()"); fclose(encoding_input); return -1; }
+    if (build_huffman_tree(&tree, frequencies) != 0) { puts("Building the Huffman Tree failed at encode()"); fclose(encoding_input); return -1; }
+
+    // Create or overwrite the encoded file (.huff) for writing compressed binary data
+    char *encoding_output_path = change_file_extension(file_path, ORIGINAL_EXTENSION, COMPRESSED_EXTENSION);
+    if (encoding_output_path == nullptr) { puts("Error occurred since file extension could not be changed at encode()"); free_huffman_tree(&tree); fclose(encoding_input); return -1; }
+    FILE *encoding_output = fopen(encoding_output_path, "wb");
+    if (encoding_output == NULL) { puts("Cannot open the file for writing binary data at encode()"); free(encoding_output_path); free_huffman_tree(&tree); fclose(encoding_input); return -1; }
+
+    // Write the compressed binary data
+    if (write_huff_file(&tree, encoding_input, encoding_output) != 0) { puts("Error occurred while writing/encoding the compressed file at encode()"); free(encoding_output_path); free_huffman_tree(&tree); fclose(encoding_input); fclose(encoding_output); return -1; }
+
+    // Free the new file path and the whole Huffman Tree
+    free(encoding_output_path);
+    free_huffman_tree(&tree);
+
+    // Close the encoding files
+    fclose(encoding_input);
+    fclose(encoding_output);
+
+    // Successful execution
+    return 0;
+}
 
 // Writes in the .huff file based on the input (encoding/compressing) and the Huffman Tree properties and Huffman algorithm
 int write_huff_file(const HuffmanTree *tree, FILE *encoding_input, FILE *encoding_output) {
@@ -22,7 +69,7 @@ int write_huff_file(const HuffmanTree *tree, FILE *encoding_input, FILE *encodin
 
     // Initializing the File Header
     Header header;
-    memcpy(header.file_extension, "HUFF", FILE_EXTENSION_SIZE); // No '/0' terminator
+    memcpy(header.file_extension, FILE_EXTENSION, FILE_EXTENSION_SIZE); // No '/0' terminator
     header.file_version = FILE_VERSION;
     header.huffman_tree_size = 0;
     header.last_bit_count = 0;
@@ -142,6 +189,40 @@ static int compress(const HuffmanTree *tree, Header *header, FILE *encoding_inpu
 }
 
 
+// Decodes the file with a given file path
+int decode(const char *file_path) {
+    // Check the file extension
+    if (!ends_with(file_path, COMPRESSED_EXTENSION)) { puts("File path does not end with COMPRESSED_EXTENSION at decode(). Ensure the path name is correct and the extension is right."); return -1; }
+
+    // Open the file for encoding
+    FILE *decoding_input = fopen(file_path, "rb");
+    if (decoding_input == NULL) { printf("Cannot open the file to be decoded at decode() for reading. Ensure the file exists and the path name is correct."); return -1; }
+
+    // Create or overwrite the decoded file (.tzt) for writing decompressed text
+    char *decoding_output_path = change_file_extension(file_path, COMPRESSED_EXTENSION, DECOMPRESSED_EXTENSION);
+    if (decoding_output_path == nullptr) { puts("Error occurred since file extension could not be changed at decode()"); fclose(decoding_input); return -1; }
+    FILE *decoding_output = fopen(decoding_output_path, "w");
+    if (decoding_output == NULL) { printf("Cannot open the file for writing decompressed data at decode()"); free(decoding_output_path); fclose(decoding_input); return -1; }
+
+    // Declare and Initialize an empty Huffman Tree
+    HuffmanTree tree;
+    for (size_t i = 0; i < CHAR_AMOUNT; ++i) tree.codes[i] = nullptr;
+
+    // Write the decompressed data into the decoding output file
+    if (read_huff_file(&tree, decoding_input, decoding_output) != 0) { puts("Error occurred while reading/decoding the compressed file at decode()"); free(decoding_output_path); free_huffman_tree(&tree); fclose(decoding_input); fclose(decoding_output);  return -1; }
+
+    // Free the new file path and the whole Huffman Tree
+    free(decoding_output_path);
+    free_huffman_tree(&tree);
+
+    // Close the decoding files
+    fclose(decoding_input);
+    fclose(decoding_output);
+
+    // Successful execution
+    return 0;
+}
+
 // Reads the .huff file and decompresses it into a decoding output file based on the serialized Huffman Tree and the encoded line of bits
 int read_huff_file(HuffmanTree *tree, FILE *decoding_input, FILE *decoding_output) {
     // Declare the header
@@ -248,7 +329,7 @@ static int decompress(const HuffmanTree *tree, const Header *header, FILE *decod
         size_t bits_to_read = 8;
 
         // If the end of the file was reached, only use the last remaining bits in the buffer
-        if (feof(decoding_output) && header->last_bit_count > 0)
+        if (feof(decoding_input) && header->last_bit_count > 0)
             bits_to_read = header->last_bit_count;
 
         // Process each remaining bit in the buffer
@@ -285,4 +366,40 @@ static int decompress(const HuffmanTree *tree, const Header *header, FILE *decod
 
     // Successful execution
     return 0;
+}
+
+
+// Returns true or false whether a string ends with a suffix
+static bool ends_with(const char *string, const char *suffix) {
+    if (string == nullptr || suffix == nullptr) { puts("NULL pointer exception at end_with(). Some arguments are NULL"); return false; }
+
+    const size_t string_length = strlen(string);
+    const size_t suffix_length = strlen(suffix);
+
+    if (string_length < suffix_length) return false;
+
+    return strcmp(string + (string_length - suffix_length), suffix) == 0;
+}
+
+// Changes the file extension in the path from old to new
+static char *change_file_extension(const char *file_path, const char *old_extension, const char *new_extension) {
+    if (file_path == nullptr || old_extension == nullptr || new_extension == nullptr) { puts("NULL pointer exception at change_file_extension(). Some arguments are NULL"); return nullptr; }
+    if (!ends_with(file_path, old_extension)) { puts("The 'old_extension' does not match the extension in 'file_path' at change_file_extension()"); return nullptr; }
+
+    // Length math
+    const size_t file_path_length = strlen(file_path);
+    const size_t old_extension_length = strlen(old_extension);
+    const size_t new_extension_length = strlen(new_extension);
+    const size_t new_file_path_length = file_path_length - old_extension_length + new_extension_length + 1;
+
+    // Allocate memory for a new file path
+    char *encoded_file_path = calloc(new_file_path_length, sizeof(char));
+    if (encoded_file_path == nullptr) { puts("Error occurred while allocating the memory for a new file path at change_file_extension()"); return nullptr; }
+
+    // Combine the old file path without its extension with the new extension
+    strncpy(encoded_file_path, file_path, file_path_length - old_extension_length);
+    encoded_file_path[file_path_length - old_extension_length] = '\0';
+    strcat(encoded_file_path, new_extension);
+
+    return encoded_file_path;
 }
